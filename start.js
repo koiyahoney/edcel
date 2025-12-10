@@ -1,4 +1,5 @@
 // Start script for Railway deployment
+import 'dotenv/config';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { exec } from 'child_process';

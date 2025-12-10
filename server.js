@@ -1,5 +1,4 @@
-import dotenv from 'dotenv';
-dotenv.config();
+import 'dotenv/config';
 
 import express from 'express';
 import path from 'path';
@@ -9,52 +8,14 @@ import cookieParser from 'cookie-parser';
 import { categoryOps, questionOps, searchOps, voiceSettingsOps, feedbackOps, analyticsOps } from './db.js';
 import { authOps, userStatsOps, conversationOps, bookmarkOps, quizProgressOps, achievementOps, gamificationOps } from './auth.js';
 import { authenticateToken, optionalAuth, rateLimit } from './middleware.js';
-import Groq from 'groq-sdk';
 import messengerRouter from './messenger-bot.js';
+import { getAvailableClient, markKeyLimited, getKeysInfo } from './groq-client.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-// Initialize Multiple Groq API clients for failover
-const apiKeys = [
-  process.env.GROQ_API_KEY_1,
-  process.env.GROQ_API_KEY_2
-].filter(key => key && key !== 'your_second_api_key_here'); // Filter out placeholder
 
-const groqClients = apiKeys.map(key => new Groq({ apiKey: key }));
-
-// Track current API key index and rate limit status
-let currentKeyIndex = 0;
-let keyRateLimitStatus = apiKeys.map(() => ({ limited: false, resetTime: null }));
-
-console.log(`🔑 Initialized ${groqClients.length} Groq API key(s) for failover`);
-
-// Function to get next available API client
-function getAvailableGroqClient() {
-  // Check if current key is available
-  if (!keyRateLimitStatus[currentKeyIndex].limited) {
-    return { client: groqClients[currentKeyIndex], keyIndex: currentKeyIndex };
-  }
-  
-  // Find next available key
-  for (let i = 0; i < groqClients.length; i++) {
-    const nextIndex = (currentKeyIndex + i + 1) % groqClients.length;
-    if (!keyRateLimitStatus[nextIndex].limited) {
-      currentKeyIndex = nextIndex;
-      console.log(`🔄 Switched to API key #${currentKeyIndex + 1}`);
-      return { client: groqClients[nextIndex], keyIndex: nextIndex };
-    }
-  }
-  
-  return null; // All keys are rate limited
-}
-
-// Mark a key as rate limited
-function markKeyAsLimited(keyIndex) {
-  keyRateLimitStatus[keyIndex].limited = true;
-  keyRateLimitStatus[keyIndex].resetTime = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
-  console.log(`⚠️ API key #${keyIndex + 1} marked as rate limited`);
-}
+console.log(`🔑 Groq API key info:`, getKeysInfo());
 
 const SKSU_CONTEXT = `You are an AI assistant for Sultan Kudarat State University (SKSU) Student Body Organization.
 
@@ -220,91 +181,23 @@ app.post('/api/search', (req, res) => {
 app.post('/api/ai/chat', async (req, res) => {
   try {
     const { message, conversationHistory = [] } = req.body;
-    
+
     if (!message || message.trim().length === 0) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    // Get available API client
-    const availableClient = getAvailableGroqClient();
-    
-    if (!availableClient) {
-      return res.status(429).json({ 
-        error: 'All AI API keys have reached their rate limit. Please try again later or use FAQ mode.',
-        allKeysLimited: true
-      });
-    }
+    // Use centralized AI helper
+    const { chatWithAI } = await import('./groq-ai.js');
+    const aiResponse = await chatWithAI(message, conversationHistory);
 
-    const { client: groq, keyIndex } = availableClient;
-
-    // Build messages array for Groq
-    const messages = [
-      {
-        role: 'system',
-        content: SKSU_CONTEXT
-      },
-      ...conversationHistory.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      })),
-      {
-        role: 'user',
-        content: message
-      }
-    ];
-
-    // Call Groq API with current key
-    const completion = await groq.chat.completions.create({
-      messages: messages,
-      model: 'llama-3.1-8b-instant', // Updated to current available model
-      temperature: 0.7,
-      max_tokens: 1024,
-      top_p: 0.9,
-      stream: false
-    });
-
-    const aiResponse = completion.choices[0]?.message?.content || 
-      'I apologize, but I could not generate a response. Please try again.';
-
-    res.json({ 
+    return res.json({
       success: true,
       response: aiResponse,
-      model: 'llama-3.1-8b-instant',
-      apiKeyUsed: keyIndex + 1 // Show which key was used (for debugging)
+      model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant'
     });
-
   } catch (err) {
-    console.error('❌ AI Chat Error:', err.message);
-    
-    if (err.status === 429) {
-      // Mark current key as rate limited
-      markKeyAsLimited(currentKeyIndex);
-      
-      // Try with next available key
-      const nextClient = getAvailableGroqClient();
-      
-      if (nextClient) {
-        return res.status(200).json({ 
-          success: false,
-          retry: true,
-          message: 'Switching to backup API key. Please retry your request.',
-          switchedToKey: nextClient.keyIndex + 1
-        });
-      } else {
-        return res.status(429).json({ 
-          error: 'All AI API keys have reached their rate limit. Please try again in 24 hours or use FAQ mode.',
-          allKeysLimited: true
-        });
-      }
-    }
-    
-    if (err.status === 401) {
-      return res.status(401).json({ 
-        error: 'AI service configuration error. Please contact the administrator.' 
-      });
-    }
-    
-    res.status(500).json({ error: 'An error occurred while processing your request.' });
+    console.error('❌ AI Chat Error:', err?.message || err);
+    return res.status(500).json({ error: 'An error occurred while processing your AI request.' });
   }
 });
 
@@ -1013,7 +906,34 @@ app.get('/api/admin/analytics/failed-searches', (req, res) => {
 // ==================== SERVER ====================
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ FAQ Bot Server running at http://localhost:${PORT}`);
   console.log(`📖 Open your browser and visit the URL above`);
+});
+
+// Keep the server alive
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} is already in use. Trying port ${PORT + 1}...`);
+    server.listen(PORT + 1, '0.0.0.0');
+  } else {
+    console.error('❌ Server error:', err);
+  }
+});
+
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\n👋 Shutting down server...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGTERM', () => {
+  console.log('\n👋 Shutting down server...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    process.exit(0);
+  });
 });
