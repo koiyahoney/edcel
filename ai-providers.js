@@ -113,7 +113,8 @@ function getAvailableProviders() {
 
 // Gemini chat function
 async function chatWithGemini(client, userMessage, conversationHistory = []) {
-  const model = client.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  // Using flash-lite for lower quota usage
+  const model = client.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
   
   // Build prompt with context
   const fullPrompt = conversationHistory.length > 0 
@@ -131,11 +132,12 @@ async function chatWithCohere(client, userMessage, conversationHistory = []) {
     message: msg.content
   }));
 
+  // Using smaller 7B model for lower quota usage
   const response = await client.chat({
     message: userMessage,
     preamble: SKSU_CONTEXT,
     chatHistory: chatHistory,
-    model: 'command-r-08-2024'
+    model: 'command-r7b-12-2024'
   });
 
   return response.text;
