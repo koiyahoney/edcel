@@ -113,15 +113,19 @@ function getAvailableProviders() {
 
 // Gemini chat function
 async function chatWithGemini(client, userMessage, conversationHistory = []) {
-  const model = client.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = client.getGenerativeModel({ 
+    model: 'gemini-1.5-flash',
+    systemInstruction: {
+      parts: [{ text: SKSU_CONTEXT }]
+    }
+  });
   
   // Build conversation for Gemini
   const chat = model.startChat({
     history: conversationHistory.map(msg => ({
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.content }]
-    })),
-    systemInstruction: SKSU_CONTEXT
+    }))
   });
 
   const result = await chat.sendMessage(userMessage);
@@ -139,7 +143,7 @@ async function chatWithCohere(client, userMessage, conversationHistory = []) {
     message: userMessage,
     preamble: SKSU_CONTEXT,
     chatHistory: chatHistory,
-    model: 'command-r-plus'
+    model: 'command-r'
   });
 
   return response.text;
