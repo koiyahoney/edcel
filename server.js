@@ -9,13 +9,13 @@ import { categoryOps, questionOps, searchOps, voiceSettingsOps, feedbackOps, ana
 import { authOps, userStatsOps, conversationOps, bookmarkOps, quizProgressOps, achievementOps, gamificationOps } from './auth.js';
 import { authenticateToken, optionalAuth, rateLimit } from './middleware.js';
 import messengerRouter from './messenger-bot.js';
-import { getAvailableClient, markKeyLimited, getKeysInfo } from './groq-client.js';
+import { chatWithAI, getProvidersInfo } from './ai-providers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 
-console.log(`🔑 Groq API key info:`, getKeysInfo());
+console.log(`🤖 AI Providers info:`, getProvidersInfo());
 
 const SKSU_CONTEXT = `You are an AI assistant for Sultan Kudarat State University (SKSU) Student Body Organization.
 
@@ -177,7 +177,7 @@ app.post('/api/search', (req, res) => {
   }
 });
 
-// AI Chat endpoint with automatic failover
+// AI Chat endpoint with automatic failover (Gemini -> Cohere -> Groq)
 app.post('/api/ai/chat', async (req, res) => {
   try {
     const { message, conversationHistory = [] } = req.body;
@@ -186,14 +186,13 @@ app.post('/api/ai/chat', async (req, res) => {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    // Use centralized AI helper
-    const { chatWithAI } = await import('./groq-ai.js');
+    // Use multi-provider AI with failover
     const aiResponse = await chatWithAI(message, conversationHistory);
 
     return res.json({
       success: true,
       response: aiResponse,
-      model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant'
+      providers: getProvidersInfo()
     });
   } catch (err) {
     console.error('❌ AI Chat Error:', err?.message || err);
@@ -903,21 +902,17 @@ app.get('/api/admin/analytics/failed-searches', (req, res) => {
   }
 });
 
-// Debug endpoint to check environment variables (masked)
+// Debug endpoint to check AI providers and environment variables
 app.get('/api/debug/env', (req, res) => {
-  const keysInfo = getKeysInfo();
+  const providersInfo = getProvidersInfo();
   res.json({
-    groqKeysConfigured: keysInfo.length > 0,
-    keysCount: keysInfo.length,
-    keysStatus: keysInfo,
+    providers: providersInfo,
+    providersCount: providersInfo.length,
     envVars: {
-      GROQ_API_KEYS: !!process.env.GROQ_API_KEYS,
+      GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+      COHERE_API_KEY: !!process.env.COHERE_API_KEY,
       GROQ_API_KEY: !!process.env.GROQ_API_KEY,
-      GROQ_API_KEY_1: !!process.env.GROQ_API_KEY_1,
-      GROQ_API_KEY_2: !!process.env.GROQ_API_KEY_2,
-      GROQ_API_KEY_3: !!process.env.GROQ_API_KEY_3,
-      GROQ_API_KEY_4: !!process.env.GROQ_API_KEY_4,
-      GROQ_MODEL: process.env.GROQ_MODEL || 'default'
+      GROQ_API_KEYS: !!process.env.GROQ_API_KEYS
     }
   });
 });
