@@ -113,22 +113,14 @@ function getAvailableProviders() {
 
 // Gemini chat function
 async function chatWithGemini(client, userMessage, conversationHistory = []) {
-  const model = client.getGenerativeModel({ 
-    model: 'gemini-1.5-flash',
-    systemInstruction: {
-      parts: [{ text: SKSU_CONTEXT }]
-    }
-  });
+  const model = client.getGenerativeModel({ model: 'gemini-pro' });
   
-  // Build conversation for Gemini
-  const chat = model.startChat({
-    history: conversationHistory.map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
-    }))
-  });
+  // Build prompt with context
+  const fullPrompt = conversationHistory.length > 0 
+    ? `${SKSU_CONTEXT}\n\nConversation so far:\n${conversationHistory.map(m => `${m.role}: ${m.content}`).join('\n')}\n\nUser: ${userMessage}\n\nAssistant:`
+    : `${SKSU_CONTEXT}\n\nUser: ${userMessage}\n\nAssistant:`;
 
-  const result = await chat.sendMessage(userMessage);
+  const result = await model.generateContent(fullPrompt);
   return result.response.text();
 }
 
@@ -143,7 +135,7 @@ async function chatWithCohere(client, userMessage, conversationHistory = []) {
     message: userMessage,
     preamble: SKSU_CONTEXT,
     chatHistory: chatHistory,
-    model: 'command-r'
+    model: 'command'
   });
 
   return response.text;
