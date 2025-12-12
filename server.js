@@ -914,6 +914,9 @@ app.get('/api/debug/env', (req, res) => {
       GROQ_API_KEYS: !!process.env.GROQ_API_KEYS,
       GROQ_API_KEY: !!process.env.GROQ_API_KEY,
       GROQ_API_KEY_1: !!process.env.GROQ_API_KEY_1,
+      GROQ_API_KEY_2: !!process.env.GROQ_API_KEY_2,
+      GROQ_API_KEY_3: !!process.env.GROQ_API_KEY_3,
+      GROQ_API_KEY_4: !!process.env.GROQ_API_KEY_4,
       GROQ_MODEL: process.env.GROQ_MODEL || 'default'
     }
   });

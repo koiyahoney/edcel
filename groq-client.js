@@ -11,6 +11,8 @@ if (process.env.GROQ_API_KEYS) {
 if (process.env.GROQ_API_KEY) keys.push(process.env.GROQ_API_KEY);
 if (process.env.GROQ_API_KEY_1) keys.push(process.env.GROQ_API_KEY_1);
 if (process.env.GROQ_API_KEY_2) keys.push(process.env.GROQ_API_KEY_2);
+if (process.env.GROQ_API_KEY_3) keys.push(process.env.GROQ_API_KEY_3);
+if (process.env.GROQ_API_KEY_4) keys.push(process.env.GROQ_API_KEY_4);
 
 // Deduplicate while preserving order
 const uniqueKeys = [...new Set(keys)];
