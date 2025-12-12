@@ -48,7 +48,8 @@ async function chatWithAI(userMessage, conversationHistory = []) {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const available = getAvailableClient();
       if (!available) {
-        return 'The AI service is currently unavailable (no API keys). Please try again later or use FAQ mode.';
+        const debugInfo = `(Env vars: GROQ_API_KEYS=${!!process.env.GROQ_API_KEYS}, GROQ_API_KEY=${!!process.env.GROQ_API_KEY})`;
+        return `The AI service is currently unavailable (no API keys). ${debugInfo} Please try again later or use FAQ mode.`;
       }
 
       const { client, keyIndex } = available;

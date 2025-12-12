@@ -15,6 +15,14 @@ if (process.env.GROQ_API_KEY_2) keys.push(process.env.GROQ_API_KEY_2);
 // Deduplicate while preserving order
 const uniqueKeys = [...new Set(keys)];
 
+console.log('DEBUG: Loading Groq Keys...');
+console.log('DEBUG: GROQ_API_KEYS present:', !!process.env.GROQ_API_KEYS);
+console.log('DEBUG: GROQ_API_KEY present:', !!process.env.GROQ_API_KEY);
+console.log('DEBUG: Found keys count:', uniqueKeys.length);
+if (uniqueKeys.length > 0) {
+    console.log('DEBUG: First key starts with:', uniqueKeys[0].substring(0, 10) + '...');
+}
+
 if (uniqueKeys.length === 0) {
   console.warn('⚠️ No Groq API keys found in environment (GROQ_API_KEYS/GROQ_API_KEY_1/GROQ_API_KEY). AI mode will be disabled.');
 }
